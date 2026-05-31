@@ -1,0 +1,164 @@
+/* ============================================================
+   Oncoscope — design tokens & base styles  (ported from the
+   design handoff: oncoscope-design-handoff/project/src/styles.css)
+   Light, clinical, restrained. Hanken Grotesk + IBM Plex Mono.
+   ============================================================ */
+
+:root {
+  /* --- Neutrals (warm, soft) --- */
+  --bg-void:      #e9e8e3;   /* deepest backdrop / slide glass */
+  --bg-canvas:    #f5f4f0;   /* app background */
+  --surface-1:    #ffffff;   /* primary panels / bars */
+  --surface-2:    #faf9f6;   /* cards */
+  --surface-3:    #efeee9;   /* hover / control track */
+  --hairline:     #e7e5de;   /* borders */
+  --hairline-2:   #d9d7ce;
+
+  /* --- Report / patient paper (already light) --- */
+  --paper:        #ffffff;
+  --paper-2:      #f5f4f0;
+  --paper-line:   #e7e5de;
+  --ink:          #1c2024;
+  --ink-2:        #5c636b;
+
+  /* --- Text --- */
+  --text-hi:      #1b1f23;
+  --text:         #3c424a;
+  --text-mid:     #6a7178;
+  --text-lo:      #9aa0a7;
+
+  /* --- Brand accent: clinical teal (primary actions only) --- */
+  --accent:       #0e8c80;
+  --accent-hi:    #0b756b;   /* hover (darker) */
+  --accent-lo:    #0a6a61;   /* borders */
+  --accent-ink:   #0a736a;   /* accent text readable on light */
+  --accent-soft:  #e2f1ef;
+
+  /* --- Confidence language (tuned for light bg) --- */
+  --tumor-lo:     #e0920f;   /* amber — lower likelihood */
+  --tumor-mid:    #df661f;   /* orange */
+  --tumor-hi:     #d23b40;   /* red — high likelihood */
+  --uncertain:    #6a5ae0;   /* violet/blue — needs review */
+  --uncertain-hi: #5648c8;
+  --confirm:      #1f9d5c;   /* green — doctor confirmed */
+  --confirm-hi:   #178049;
+  --dismiss:      #9aa0a7;   /* grey — doctor dismissed */
+
+  /* --- Warning / disclaimer --- */
+  --warn:         #9a6b00;   /* dark amber text */
+  --warn-line:    #e7c779;
+  --warn-soft:    #fbf3df;
+
+  --radius:       8px;
+  --radius-sm:    6px;
+  --radius-lg:    13px;
+
+  --shadow-1: 0 1px 2px rgba(28,30,25,0.05), 0 1px 3px rgba(28,30,25,0.05);
+  --shadow-2: 0 2px 8px rgba(28,30,25,0.07), 0 8px 24px rgba(28,30,25,0.08);
+  --shadow-pop: 0 16px 48px rgba(28,30,25,0.18), 0 2px 8px rgba(28,30,25,0.08);
+
+  --sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-canvas);
+  font-family: var(--sans);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root { height: 100%; }
+
+button { font-family: var(--sans); cursor: pointer; border: none; background: none; color: inherit; }
+input, select, textarea { font-family: inherit; }
+
+::selection { background: var(--accent-soft); }
+
+.mono { font-family: var(--mono); font-feature-settings: "tnum" 1, "zero" 1; }
+
+/* thin scrollbars */
+.scroll-dark::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll-dark::-webkit-scrollbar-thumb { background: var(--hairline-2); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll-dark::-webkit-scrollbar-thumb:hover { background: #c7c4b9; }
+.scroll-dark::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- shared small components ---- */
+
+.disclaimer-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid var(--warn-line);
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: 100px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.disclaimer-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: #d99a1a; box-shadow: 0 0 0 3px rgba(217,154,26,0.18); }
+
+.kbd {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+  padding: 1px 5px; border-radius: 4px;
+  background: var(--surface-3); border: 1px solid var(--hairline);
+  color: var(--text-mid);
+}
+
+/* primary button — teal, used sparingly */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  background: var(--accent); color: #ffffff;
+  font-weight: 600; font-size: 13.5px;
+  padding: 9px 16px; border-radius: var(--radius-sm);
+  transition: background .14s ease, transform .08s ease;
+  box-shadow: var(--shadow-1);
+}
+.btn-primary:hover { background: var(--accent-hi); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  color: var(--text-hi); font-weight: 500; font-size: 13px;
+  padding: 8px 13px; border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline-2);
+  background: var(--surface-1);
+  transition: background .14s, border-color .14s;
+}
+.btn-ghost:hover { background: var(--surface-3); border-color: var(--hairline-2); }
+.btn-ghost.active { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+/* spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(210,59,64,0.32); }
+  70%  { box-shadow: 0 0 0 8px rgba(210,59,64,0); }
+  100% { box-shadow: 0 0 0 0 rgba(210,59,64,0); }
+}
+
+@keyframes fadeUp {
+  from { transform: translateY(7px); }
+  to   { transform: translateY(0); }
+}
+.fade-up { animation: fadeUp .28s cubic-bezier(.2,.7,.2,1); }
+
+@keyframes wave { from { transform: scaleY(0.4); } to { transform: scaleY(1); } }
+@keyframes heroScan { 0%{top:0;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:100%;opacity:0} }
+
+/* ---- Annotorious v2 annotation shapes (pathologist's drawn marks) ---- */
+svg.a9s-annotationlayer .a9s-annotation .a9s-inner,
+svg.a9s-annotationlayer .a9s-selection .a9s-inner {
+  stroke-width: 2.5px; vector-effect: non-scaling-stroke;
+  stroke: var(--accent); fill: rgba(14, 140, 128, 0.12);
+}
+svg.a9s-annotationlayer .a9s-annotation.onco-tumor .a9s-inner { stroke: var(--tumor-hi); fill: rgba(210, 59, 64, 0.16); }
+svg.a9s-annotationlayer .a9s-annotation.onco-uncertain .a9s-inner { stroke: var(--uncertain); fill: rgba(106, 90, 224, 0.16); }
+svg.a9s-annotationlayer .a9s-annotation.onco-benign .a9s-inner { stroke: #7a828a; fill: rgba(122, 130, 138, 0.16); }

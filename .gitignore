@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+oncoscope-design-handoff/
+sample_dzi_files/
+BACKEND_REQUIREMENTS.md

@@ -1,0 +1,28 @@
+{
+  "annotations": {
+    "A05": [
+      {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "id": "#c7488a06-a02c-419c-a0cc-78cbde68b2c5",
+        "type": "Annotation",
+        "body": [
+          {
+            "type": "TextualBody",
+            "value": "this is cancer",
+            "purpose": "commenting"
+          }
+        ],
+        "target": {
+          "source": "http://localhost:5173/undefined",
+          "selector": {
+            "type": "FragmentSelector",
+            "conformsTo": "http://www.w3.org/TR/media-frags/",
+            "value": "xywh=pixel:54866.34765625,19385.8984375,1634.66796875,2078.34375"
+          }
+        }
+      }
+    ]
+  },
+  "reviews": {},
+  "comments": {}
+}
