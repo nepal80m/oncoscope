@@ -154,11 +154,19 @@ input, select, textarea { font-family: inherit; }
 @keyframes heroScan { 0%{top:0;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:100%;opacity:0} }
 
 /* ---- Annotorious v2 annotation shapes (pathologist's drawn marks) ---- */
+/* white outer halo so colored marks pop on busy H&E tissue (the wsi-demo look) */
+svg.a9s-annotationlayer .a9s-annotation .a9s-outer,
+svg.a9s-annotationlayer .a9s-selection .a9s-outer {
+  stroke: rgba(255, 255, 255, 0.92); stroke-width: 4.5px; vector-effect: non-scaling-stroke; fill: transparent;
+}
 svg.a9s-annotationlayer .a9s-annotation .a9s-inner,
 svg.a9s-annotationlayer .a9s-selection .a9s-inner {
   stroke-width: 2.5px; vector-effect: non-scaling-stroke;
-  stroke: var(--accent); fill: rgba(14, 140, 128, 0.12);
+  stroke: var(--accent); fill: var(--accent); fill-opacity: 0.36;
 }
-svg.a9s-annotationlayer .a9s-annotation.onco-tumor .a9s-inner { stroke: var(--tumor-hi); fill: rgba(210, 59, 64, 0.16); }
-svg.a9s-annotationlayer .a9s-annotation.onco-uncertain .a9s-inner { stroke: var(--uncertain); fill: rgba(106, 90, 224, 0.16); }
-svg.a9s-annotationlayer .a9s-annotation.onco-benign .a9s-inner { stroke: #7a828a; fill: rgba(122, 130, 138, 0.16); }
+svg.a9s-annotationlayer .a9s-annotation.onco-tumor .a9s-inner { stroke: var(--tumor-hi); fill: var(--tumor-hi); fill-opacity: 0.42; }
+svg.a9s-annotationlayer .a9s-annotation.onco-uncertain .a9s-inner { stroke: var(--uncertain); fill: var(--uncertain); fill-opacity: 0.42; }
+svg.a9s-annotationlayer .a9s-annotation.onco-benign .a9s-inner { stroke: #7a828a; fill: #7a828a; fill-opacity: 0.42; }
+/* emphasize on hover / when selected */
+svg.a9s-annotationlayer .a9s-annotation:hover .a9s-inner { fill-opacity: 0.55; stroke-width: 3px; }
+svg.a9s-annotationlayer .a9s-annotation.selected .a9s-inner { fill-opacity: 0.55; stroke-width: 3px; }

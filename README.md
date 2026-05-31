@@ -1,46 +1,63 @@
 # Oncoscope
 
 A web-based AI "second reader" for detecting breast-cancer metastases in lymph-node whole-slide
-images. The pathologist reviews a deep-zoom slide with an AI confidence heatmap + flagged regions,
-**agrees / disagrees / relabels** the AI's findings, **draws their own annotations and threaded
-comments**, and signs out a structured report that unlocks a plain-language patient summary.
+images. The pathologist reviews a deep-zoom slide with the model's attention heatmap + ranked
+high-attention regions, **agrees / disagrees / relabels** the AI's findings, **draws their own
+annotations with threaded comments**, fills in the staging, and signs out a report that unlocks a
+plain-language patient summary.
 
 Built from the Claude Design handoff (`oncoscope-design-handoff/`), with the faked prototype viewer
-replaced by a real **OpenSeadragon** deep-zoom viewer + **Annotorious** annotation layer (the
-wsi-annotation-demo pattern).
+replaced by a real **OpenSeadragon** deep-zoom viewer + **Annotorious** annotation layer.
+
+## Architecture
+
+Frontend-only — **no server to run**:
+
+- **Reads** slide artifacts (catalog, AI `result.json`, DZI tiles, thumbnails, attention overlay,
+  crops) **directly** from the public GCS bucket `gs://oncoscope-1`.
+- **Writes** the pathologist's data (annotations, region reviews, comments, editable report +
+  sign-off) **directly** to **Cloud Firestore** (project `uoo-quackathon26eug-8226`, database `oncodb`).
+- The AI (tiling + UNI2 embeddings + ABMIL inference + report text) runs **offline** in the ML
+  pipeline and publishes artifacts to the bucket.
+
+See **[BACKEND_REQUIREMENTS.md](BACKEND_REQUIREMENTS.md)** for the full data/integration contract
+(GCS layout, the `result.json` adapter mapping, the Firestore schema + rules, and the optional
+FastAPI-on-Cloud-Run seam for live Gemini Q&A / predict).
 
 ## Layout
 
 ```
-frontend/                 React + Vite app (the product)
-mock-backend/             Node/Express dev backend — real non-AI endpoints + canned AI (mergeable)
-sample_dzi_files/         the A05 sample DZI pyramid (served in place; not committed)
-BACKEND_REQUIREMENTS.md   ← canonical API/data contract for the real backend team
+frontend/                 React + Vite app (the product) — reads GCS, writes Firestore
+BACKEND_REQUIREMENTS.md   ← data/integration contract (GCS + Firestore)
 oncoscope-design-handoff/ original design export (reference only)
+mock-backend/             DEPRECATED — the old Node/Express dev stand-in; no longer used or required
 ```
 
-## Run it (two terminals)
+## Run it
 
 ```bash
-# 1) backend (serves the A05 DZI + catalog/analysis/annotations/comments/reviews/uploads)
-cd mock-backend && npm install && npm run dev        # → http://localhost:4100
-
-# 2) frontend
-cd frontend && npm install && npm run dev            # → http://localhost:5173
+cd frontend && npm install && npm run dev      # → http://localhost:5173
 ```
 
-Open **http://localhost:5173**. `frontend/.env` sets `VITE_API_BASE=http://localhost:4100`.
+Config lives in `frontend/.env` (already set): `VITE_GCS_BASE` (the bucket) and `VITE_FB_*`
+(Firebase web config + `VITE_FB_DB_ID=oncodb`). The Firebase `apiKey` is public by design — access is
+governed by Firestore security rules. The Firestore database `oncodb` must exist (Native mode).
 
 ## Try the flow
-Landing → **Upload a slide** → pick a cached slide (instant) *or* drop a file (a name like
-`CAMELYON-0148.svs` hits the cache; anything else runs the upload→processing job) → **Workspace**:
-deep-zoom the slide, toggle the AI heatmap, review regions (Agree/Disagree/relabel/comment), and
-**draw annotations** (Box / Polygon / Freehand) with a comment + class — everything persists. Then
-**Report** → sign off → **Patient summary** unlocks. The ⊞ button (bottom-left) jumps between screens.
+
+Landing → **Open a slide** → pick a processed slide from the library (e.g. `test_016`) → **Workspace**:
+deep-zoom the real WSI, toggle the AI attention heatmap, step through high-attention regions
+(Agree / Disagree / relabel / comment), and **draw annotations** (Box / Polygon / Freehand) with a
+class + comment — everything persists to Firestore. Then **Report**: edit the impression/findings,
+enter staging (pN / mm / tumor-area %), **sign off** → the **Patient summary** unlocks. The ⊞ button
+(bottom-left) jumps between screens.
+
+`test_016 / test_027 / test_040` are tumor-positive; `test_031 / test_063` read negative.
 
 ## Tech
+
 React + Vite · OpenSeadragon 3 · Annotorious v2 (`@recogito/annotorious-openseadragon` + selector
-pack) · React Router · localStorage for session UI state. The backend boundary is one API client
-(`frontend/src/api/client.js`); see **BACKEND_REQUIREMENTS.md** to build the production service.
+pack) · React Router · **Firebase / Firestore** (web SDK) · public GCS for read artifacts. The data
+seam is one client (`frontend/src/api/client.js`) + `lib/{gcsConfig,adaptAnalysis,firebase}.js`.
 
 > Research prototype — **not for clinical use.**

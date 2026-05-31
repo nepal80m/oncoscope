@@ -6,7 +6,8 @@
    ============================================================ */
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { REGIONS, UM_PER_PX } from '../data/mock.js';
+import { UM_PER_PX } from '../data/mock.js';
+import { api } from '../api/client.js';
 
 const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -25,18 +26,23 @@ export function AppProvider({ children }) {
 
   const [analyzed, setAnalyzed] = useState(() => localStorage.getItem('onco.analyzed') === '1');
   const [running, setRunning] = useState(false);
-  const [signedOff, setSignedOff] = useState(() => localStorage.getItem('onco.signed') === '1');
-  const [slideId, setSlideIdState] = useState(() => localStorage.getItem('onco.slide') || 'A05');
+  const [signedOff, setSignedOff] = useState(false); // derived per-slide from the report doc
+  const [report, setReport] = useState(null);
+  // default to a real cached slide; migrate the legacy 'A05' stand-in id
+  const [slideId, setSlideIdState] = useState(() => {
+    const stored = localStorage.getItem('onco.slide');
+    return stored && stored !== 'A05' ? stored : 'test_016';
+  });
   const [qaOpen, setQaOpen] = useState(false);
   const [narrate, setNarrate] = useState(false);
-  const [regions, setRegions] = useState(() => REGIONS.map((r) => ({ ...r, source: 'ai', review: 'pending', docNote: '' })));
+  const [regions, setRegions] = useState([]); // populated from real analysis via initRegions
   const docCount = useRef(0);
   const loadedSlide = useRef(null);
 
   // Map a backend analysis region into the reviewable shape used across the app.
   const mapAnalysisRegion = (r) => ({
-    id: r.region_id, cls: r.cls, conf: r.confidence, label: r.label,
-    cx: r.cx, cy: r.cy, bbox: r.bbox, dim: r.dim, areaMm2: r.area_mm2, note: r.note,
+    id: r.region_id, cls: r.cls, conf: r.confidence, rank: r.rank, attention: r.attention, label: r.label,
+    cx: r.cx, cy: r.cy, bbox: r.bbox, dim: r.dim, areaMm2: r.area_mm2, note: r.note, crop_url: r.crop_url,
     source: 'ai', review: 'pending', docNote: '',
   });
   // Load regions for a slide once; preserves the pathologist's review on re-renders.
@@ -56,7 +62,15 @@ export function AppProvider({ children }) {
   };
 
   useEffect(() => { localStorage.setItem('onco.analyzed', analyzed ? '1' : '0'); }, [analyzed]);
-  useEffect(() => { localStorage.setItem('onco.signed', signedOff ? '1' : '0'); }, [signedOff]);
+  // load the active slide's editable report; sign-off is per-slide (Firestore)
+  useEffect(() => {
+    let cancelled = false;
+    setReport(null);
+    api.getReport(slideId)
+      .then((r) => { if (!cancelled) { setReport(r); setSignedOff(!!r?.signed_off); } })
+      .catch(() => { if (!cancelled) { setReport(null); setSignedOff(false); } });
+    return () => { cancelled = true; };
+  }, [slideId]);
 
   // merge persisted review decisions (from the backend) onto the loaded regions
   const applyReviews = (map) => {
@@ -86,9 +100,21 @@ export function AppProvider({ children }) {
     return id;
   };
 
+  // editable report (merged patch → Firestore) + per-slide sign-off
+  const saveReport = async (patch) => {
+    setReport((r) => ({ ...(r || {}), ...patch }));
+    try { await api.putReport(slideId, patch); } catch { /* ignore */ }
+  };
+  const signOff = async (signer = 'Dana Whitfield') => {
+    setSignedOff(true);
+    setReport((r) => ({ ...(r || {}), signed_off: true, signer, signed_at: new Date().toISOString() }));
+    try { await api.signReport(slideId, signer); } catch { /* ignore */ }
+  };
+
   const value = {
     screen, go, slideId, setSlideId,
     analyzed, setAnalyzed, running, setRunning, signedOff, setSignedOff,
+    report, saveReport, signOff,
     qaOpen, setQaOpen, narrate, setNarrate,
     regions, initRegions, applyReviews, confirmRegion, dismissRegion, relabelRegion, noteRegion, addRegion, removeRegion,
   };

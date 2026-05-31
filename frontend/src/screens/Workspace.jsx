@@ -37,7 +37,7 @@ export default function Workspace() {
   const app = useApp();
   const {
     slideId, analyzed, setAnalyzed, running, setRunning, qaOpen, setQaOpen, go, setNarrate,
-    regions, initRegions, applyReviews, confirmRegion, dismissRegion, relabelRegion, noteRegion,
+    regions, initRegions, applyReviews, confirmRegion, dismissRegion, relabelRegion, noteRegion, report,
   } = app;
 
   const slideRef = useRef(null);
@@ -49,7 +49,6 @@ export default function Workspace() {
   const [selectedPatch, setSelectedPatch] = useState(null);
   const [activeRegion, setActiveRegion] = useState(null);
   const [drawTool, setDrawTool] = useState(null);
-  const [gradcam, setGradcam] = useState(false);
   const [progress, setProgress] = useState(0);
   const stepIdx = useRef(-1);
 
@@ -71,7 +70,12 @@ export default function Workspace() {
   }, [slideId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patches = analysis?.top_patches || [];
-  const summary = analysis ? { ...analysis.slide_summary, confidence: analysis.prob_tumor } : null;
+  const summary = analysis ? {
+    ...analysis.slide_summary, confidence: analysis.prob_tumor,
+    tumor_area_pct: report?.tumor_area_pct ?? null,
+    largest_deposit_mm: report?.largest_deposit_mm ?? null,
+    category: report?.category ?? null,
+  } : null;
   const viewerAnalyzed = analyzed && !!analysis;
 
   const runAnalysis = () => {
@@ -99,6 +103,7 @@ export default function Workspace() {
     selectRegion(list[stepIdx.current].id);
   };
   const pickPatch = (p) => { setSelectedPatch(p); setActiveRegion(p.region_id); slideRef.current?.focusPatch(p); };
+  const pickAnnotation = (a) => slideRef.current?.focusAnnotation(a);
 
   // --- persisted AI-region review ---
   const persistReview = (id, patch) => api.putReview(slideId, id, patch).catch(() => {});
@@ -108,9 +113,9 @@ export default function Workspace() {
   const onNoteReview = (id, note) => { const r = regions.find((x) => x.id === id); noteRegion(id, note); persistReview(id, { review: r?.review || 'pending', cls: r?.cls, note }); };
 
   // --- annotations (Annotorious v2 events; the popup editor handles class + comments) ---
-  const onAnnotationCreate = (a) => { api.createAnnotation(slideId, a).catch(() => {}); setDrawTool(null); };
-  const onAnnotationUpdate = (a) => { api.updateAnnotation(slideId, a.id, a).catch(() => {}); };
-  const onAnnotationDeleteEvent = (id) => { api.deleteAnnotation(slideId, id).catch(() => {}); };
+  const onAnnotationCreate = (a) => { setAnnotations((prev) => [...(prev || []), a]); api.createAnnotation(slideId, a).catch(() => {}); setDrawTool(null); };
+  const onAnnotationUpdate = (a) => { setAnnotations((prev) => (prev || []).map((x) => (x.id === a.id ? a : x))); api.updateAnnotation(slideId, a.id, a).catch(() => {}); };
+  const onAnnotationDeleteEvent = (id) => { setAnnotations((prev) => (prev || []).filter((x) => x.id !== id)); api.deleteAnnotation(slideId, id).catch(() => {}); };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-canvas)' }}>
@@ -121,12 +126,14 @@ export default function Workspace() {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <LeftPanel {...{ analyzed, regions, activeRegion, slideId: slideId, summary,
           addMode: drawTool, setAddMode: setDrawTool, onNext: nextRegion,
-          onConfirm, onDismiss, onRelabel: onRelabelReview, onNote: onNoteReview }} />
+          onConfirm, onDismiss, onRelabel: onRelabelReview, onNote: onNoteReview,
+          annotations, onPickAnnotation: pickAnnotation }} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
             {slide && (
               <OsdViewer ref={slideRef} slide={slide} regions={regions} analyzed={viewerAnalyzed}
+                overlayUrl={analysis?.attention_overlay_url}
                 selectedRegion={activeRegion} hoveredRegion={hovered} selectedPatch={selectedPatch} onPickRegion={selectRegion}
                 annotations={annotations} drawTool={drawTool} onSetDrawTool={setDrawTool}
                 onAnnotationCreate={onAnnotationCreate} onAnnotationUpdate={onAnnotationUpdate} onAnnotationDelete={onAnnotationDeleteEvent} />
@@ -136,7 +143,7 @@ export default function Workspace() {
             {running && <RunningOverlay progress={progress} />}
           </div>
 
-          <EvidenceStrip {...{ analyzed: viewerAnalyzed, patches, regions, gradcam, setGradcam, selectedId: selectedPatch?.patch_id, onHover: setHovered, onPick: pickPatch }} />
+          <EvidenceStrip {...{ analyzed: viewerAnalyzed, patches, regions, selectedId: selectedPatch?.patch_id, onHover: setHovered, onPick: pickPatch }} />
         </div>
 
         {qaOpen && <QAPanel onClose={() => setQaOpen(false)} onCite={selectRegion} dock slideName={slide?.name} />}

@@ -6,6 +6,7 @@
 import { Icons } from '../components/Icons.jsx';
 import { SectionLabel, ConfBar } from '../components/ui.jsx';
 import CommentThread from '../components/CommentThread.jsx';
+import { annoMeta } from '../lib/annoFormat.js';
 import { SLIDE } from '../data/mock.js';
 
 const CLS_OPTS = [
@@ -51,11 +52,15 @@ function ActiveRegionCard({ r, slideId, onConfirm, onDismiss, onRelabel, onNote,
             <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-hi)' }}>{r.id}</span>
             <span style={{ fontSize: 11.5, color: 'var(--text-mid)' }}>{r.label}</span>
           </span>
-          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: tint }}>{Math.round((r.conf || 0.92) * 100)}%</span>
+          {r.conf != null
+            ? <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: tint }}>{Math.round(r.conf * 100)}%</span>
+            : r.rank ? <span className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: tint }}>attention&nbsp;#{r.rank}</span> : null}
         </div>
-        <ConfBar value={r.conf || 0.92} showViolet={r.cls === 'uncertain'} />
-        <div style={{ fontSize: 11.5, color: 'var(--text-mid)', marginTop: 9, lineHeight: 1.45 }}>{r.note}</div>
-        <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-lo)', marginTop: 7 }}>{r.dim} · {r.areaMm2} mm²</div>
+        {r.conf != null
+          ? <ConfBar value={r.conf} showViolet={r.cls === 'uncertain'} />
+          : <div className="mono" style={{ fontSize: 10, color: 'var(--text-lo)', letterSpacing: '.02em' }}>model attention · not a tumor probability</div>}
+        <div style={{ fontSize: 11.5, color: r.note ? 'var(--text-mid)' : 'var(--text-lo)', marginTop: 9, lineHeight: 1.45, fontStyle: r.note ? 'normal' : 'italic' }}>{r.note || 'Flagged by model attention — describe your finding below.'}</div>
+        {(r.dim || r.areaMm2 != null) && <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-lo)', marginTop: 7 }}>{r.dim || ''}{r.dim && r.areaMm2 != null ? ' · ' : ''}{r.areaMm2 != null ? r.areaMm2 + ' mm²' : ''}</div>}
       </div>
 
       <div style={{ padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -94,7 +99,7 @@ function ActiveRegionCard({ r, slideId, onConfirm, onDismiss, onRelabel, onNote,
 
 export default function LeftPanel(p) {
   const { analyzed, regions, activeRegion, addMode, setAddMode, summary, slideId,
-    onNext, onConfirm, onDismiss, onRelabel, onNote } = p;
+    onNext, onConfirm, onDismiss, onRelabel, onNote, annotations = [], onPickAnnotation } = p;
   const SUM = summary || { call: SLIDE.call, call_label: SLIDE.callLabel, confidence: SLIDE.confidence, tumor_area_pct: SLIDE.tumorAreaPct, largest_deposit_mm: SLIDE.largestMm, category: SLIDE.category };
   const reviewed = regions.filter((r) => r.review !== 'pending');
   const ar = activeRegion ? regions.find((r) => r.id === activeRegion) : null;
@@ -128,6 +133,38 @@ export default function LeftPanel(p) {
         )}
       </div>
 
+      {annotations.length > 0 && (
+        <>
+          <div style={{ height: 1, background: 'var(--hairline)' }} />
+          <div style={{ padding: '14px 16px' }}>
+            <SectionLabel right={<span className="mono" style={{ fontSize: 11, color: 'var(--text-mid)' }}>{annotations.length}</span>}>Your annotations</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {annotations.map((a, i) => {
+                const { tag, comment } = annoMeta(a);
+                const cls = (tag || '').toLowerCase();
+                const col = (cls === 'tumor' || cls === 'uncertain' || cls === 'benign') ? clsTint(cls) : 'var(--text-lo)';
+                return (
+                  <button key={a.id || i} onClick={() => onPickAnnotation && onPickAnnotation(a)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 9px', borderRadius: 8, border: '1px solid var(--hairline-2)', background: 'var(--surface-1)', cursor: 'pointer' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = col; e.currentTarget.style.background = 'var(--surface-2)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--hairline-2)'; e.currentTarget.style.background = 'var(--surface-1)'; }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, flex: 'none', background: col }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-hi)' }}>Mark {i + 1}</span>
+                        <span className="mono" style={{ fontSize: 10.5, color: col, textTransform: 'capitalize' }}>{tag || 'unlabeled'}</span>
+                      </div>
+                      {comment && <div style={{ fontSize: 11, color: 'var(--text-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{comment}</div>}
+                    </div>
+                    <Icons.arrowR size={14} style={{ color: 'var(--text-lo)', flex: 'none' }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
       <div style={{ height: 1, background: 'var(--hairline)' }} />
 
       <div style={{ padding: '14px 16px 24px' }}>
@@ -139,24 +176,34 @@ export default function LeftPanel(p) {
           </div>
         ) : (
           <div className="fade-up">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 9, marginBottom: 10, background: '#fdeceb', border: '1px solid #f3cfce' }}>
-              <Icons.alert size={18} style={{ color: 'var(--tumor-hi)' }} />
-              <div style={{ lineHeight: 1.2 }}>
-                <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--tumor-hi)', letterSpacing: '.03em' }}>{SUM.call}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-mid)' }}>{SUM.call_label}</div>
-              </div>
-            </div>
+            {(() => {
+              const positive = SUM.call !== 'NEGATIVE';
+              const bg = positive ? '#fdeceb' : '#e9f6ee';
+              const bd = positive ? '#f3cfce' : '#bfe6cd';
+              const ink = positive ? 'var(--tumor-hi)' : 'var(--confirm)';
+              const CallIcon = positive ? Icons.alert : Icons.checkCircle;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 9, marginBottom: 10, background: bg, border: '1px solid ' + bd }}>
+                  <CallIcon size={18} style={{ color: ink }} />
+                  <div style={{ lineHeight: 1.2 }}>
+                    <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: ink, letterSpacing: '.03em' }}>{SUM.call}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-mid)' }}>{SUM.call_label}</div>
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 12.5, color: 'var(--text-mid)' }}>Overall confidence</span>
-              <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-hi)' }}>{Math.round(SUM.confidence * 100)}%</span>
+              <span style={{ fontSize: 12.5, color: 'var(--text-mid)' }}>Tumor probability</span>
+              <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-hi)' }}>{SUM.display_probability || Math.round((SUM.confidence || 0) * 100) + '%'}</span>
             </div>
-            <ConfBar value={SUM.confidence} h={7} />
+            <ConfBar value={SUM.confidence || 0} h={7} />
             <div style={{ marginTop: 12 }}>
-              <StatRow k="Tumor area" v={SUM.tumor_area_pct + '%'} />
-              <StatRow k="Tumor regions (kept)" v={tumors} />
-              <StatRow k="Largest deposit" v={SUM.largest_deposit_mm + ' mm'} />
-              <StatRow k="Category" v={SUM.category} mono={false} />
+              <StatRow k="High-attention regions" v={regions.length} />
+              <StatRow k="Confirmed tumor (by you)" v={tumors} />
+              <StatRow k="Largest deposit" v={SUM.largest_deposit_mm != null ? SUM.largest_deposit_mm + ' mm' : '—'} />
+              <StatRow k="Nodal category" v={SUM.category || 'Not staged'} mono={false} />
             </div>
+            {SUM.review_priority && <div className="mono" style={{ fontSize: 10, color: 'var(--text-lo)', marginTop: 10, letterSpacing: '.03em' }}>REVIEW PRIORITY · {String(SUM.review_priority).toUpperCase()}</div>}
           </div>
         )}
       </div>

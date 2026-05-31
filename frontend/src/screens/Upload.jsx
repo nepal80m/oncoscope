@@ -1,8 +1,9 @@
 /* ============================================================
-   Oncoscope — Upload & processing (case intake).
-   M6: real flow — pick a cached slide from the catalog, OR drop a
-   file → cache-lookup (instant if known) → otherwise upload + poll
-   the backend job, driving the pipeline animation from job status.
+   Oncoscope — Open a slide (case intake).
+   Lists the pre-processed slide library (from the GCS manifest) and
+   opens one instantly. A dropped file is matched against the library
+   by name (cache-lookup); new-slide tiling + analysis runs in the
+   offline ML pipeline and is published to storage, not in this app.
    ============================================================ */
 import { useState, useRef, useEffect } from 'react';
 import { Icons } from '../components/Icons.jsx';
@@ -11,15 +12,6 @@ import { useApp } from '../state/AppState.jsx';
 import { api } from '../api/client.js';
 
 const ACCEPTED = '.svs, .tiff, .ndpi, .mrxs, .scn, .dcm';
-
-const PIPELINE = [
-  { id: 'upload',   label: 'Uploading slide to server',            produces: 'transfer' },
-  { id: 'validate', label: 'Validating format & reading metadata', produces: 'slide metadata (MPP, magnification, dimensions, levels)' },
-  { id: 'pyramid',  label: 'Building deep-zoom tile pyramid',       produces: 'DZI / IIIF tile source + overview thumbnail' },
-  { id: 'embed',    label: 'Generating tile embeddings',           produces: 'patch embeddings (for the assistant & search)' },
-  { id: 'classify', label: 'Classifying tissue & detecting regions', produces: 'slide-level call + regions of interest' },
-  { id: 'render',   label: 'Rendering heatmap & evidence patches',  produces: 'confidence heatmap tiles + ranked patches' },
-];
 
 function fmtSize(bytes) {
   if (!bytes) return '—';
@@ -31,18 +23,12 @@ function fmtSize(bytes) {
 export default function Upload() {
   const app = useApp();
   const [catalog, setCatalog] = useState([]);
-  const [stage, setStage] = useState('idle'); // idle | processing | done
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
-  const [job, setJob] = useState(null); // { job_id, slide_id, step_index, progress, status }
   const [cacheNote, setCacheNote] = useState('');
   const inputRef = useRef(null);
-  const pollRef = useRef(null);
 
-  useEffect(() => {
-    api.listSlides().then((d) => setCatalog(d.slides || [])).catch(() => {});
-    return () => clearInterval(pollRef.current);
-  }, []);
+  useEffect(() => { api.listSlides().then((d) => setCatalog(d.slides || [])).catch(() => {}); }, []);
 
   const openSlide = (slideId) => { app.setSlideId(slideId); app.setAnalyzed(true); app.go('workspace'); };
   const pickFile = (f) => { if (f) { setFile({ name: f.name, size: f.size }); setCacheNote(''); } };
@@ -50,31 +36,17 @@ export default function Upload() {
 
   const start = async () => {
     if (!file) return;
-    setCacheNote('Checking the server cache…');
+    setCacheNote('Checking the slide library…');
     try {
       const hit = await api.lookupSlide(file.name, file.size);
       if (hit.cached) {
-        setCacheNote(`Found “${hit.name}” in cache — opening instantly.`);
-        setTimeout(() => openSlide(hit.slide_id), 600);
+        setCacheNote(`Found “${hit.name}” in the library — opening.`);
+        setTimeout(() => openSlide(hit.slide_id), 500);
         return;
       }
-    } catch { /* fall through to upload */ }
-    // not cached → upload + process
-    setCacheNote('');
-    setStage('processing');
-    try {
-      const { job_id, slide_id } = await api.uploadSlide(file.name, file.size);
-      setJob({ job_id, slide_id, step_index: 0, progress: 0, status: 'processing' });
-      pollRef.current = setInterval(async () => {
-        try {
-          const j = await api.getJob(job_id);
-          setJob((prev) => ({ ...prev, ...j }));
-          if (j.status === 'done') { clearInterval(pollRef.current); app.setAnalyzed(true); setStage('done'); }
-        } catch { /* keep polling */ }
-      }, 400);
+      setCacheNote('This slide isn’t in the processed library yet. New slides are tiled & analyzed by the offline ML pipeline and published to storage — for this demo, open one of the cached slides above.');
     } catch (e) {
-      setStage('idle');
-      setCacheNote('Upload failed: ' + e.message);
+      setCacheNote('Couldn’t reach the slide library: ' + e.message);
     }
   };
 
@@ -91,112 +63,66 @@ export default function Upload() {
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-hi)', letterSpacing: '-.02em', margin: '0 0 8px' }}>Open or upload a whole-slide image</h1>
           <p style={{ fontSize: 14.5, color: 'var(--text-mid)', lineHeight: 1.55, margin: 0 }}>
-            Pick a slide that's already cached on the server (instant), or upload a new one — it's tiled and analyzed on the server, which can take a few minutes.
+            Pick a pre-processed slide to open it instantly. New slides are tiled and analyzed by the offline ML pipeline and published to storage.
           </p>
         </div>
 
-        {stage === 'idle' && (
-          <div className="fade-up">
-            {/* cached catalog */}
-            {catalog.length > 0 && (
-              <div style={{ marginBottom: 22 }}>
-                <div className="mono" style={{ fontSize: 10.5, letterSpacing: '.1em', color: 'var(--text-lo)', textTransform: 'uppercase', marginBottom: 10 }}>Cached slides · ready instantly</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                  {catalog.map((s) => (
-                    <button key={s.slide_id} onClick={() => openSlide(s.slide_id)}
-                      style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 11, textAlign: 'left',
-                        border: '1px solid var(--hairline-2)', background: 'var(--surface-1)', cursor: 'pointer' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--hairline-2)'; e.currentTarget.style.background = 'var(--surface-1)'; }}>
-                      <img src={s.thumbnail_url} alt="" width={46} height={46} style={{ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', flex: 'none', background: '#e8e7e2' }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-hi)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.specimen}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 4px' }}>
-                  <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
-                  <span style={{ fontSize: 12, color: 'var(--text-lo)' }}>or upload a new slide</span>
-                  <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
-                </div>
-              </div>
-            )}
-
-            {!file ? (
-              <div onClick={() => inputRef.current.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
-                style={{ borderRadius: 14, border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--hairline-2)'}`, background: dragging ? 'var(--accent-soft)' : 'var(--surface-1)', padding: '40px 30px', textAlign: 'center', cursor: 'pointer', transition: 'border-color .15s, background .15s' }}>
-                <span style={{ width: 56, height: 56, borderRadius: 15, margin: '0 auto 14px', display: 'grid', placeItems: 'center', background: 'var(--accent-soft)', color: 'var(--accent-ink)' }}><Icons.upload size={26} /></span>
-                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-hi)' }}>Drag &amp; drop a slide here</div>
-                <div style={{ fontSize: 13, color: 'var(--text-mid)', marginTop: 6 }}>or <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>browse files</span> · up to 4&nbsp;GB</div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-lo)', marginTop: 12 }}>{ACCEPTED}</div>
-                <input ref={inputRef} type="file" hidden onChange={(e) => pickFile(e.target.files[0])} />
-                <div style={{ fontSize: 11.5, color: 'var(--text-lo)', marginTop: 14 }}>Tip: a file named like a cached slide (e.g. <span className="mono">CAMELYON-0148.svs</span>) loads instantly from cache.</div>
-              </div>
-            ) : (
-              <div className="fade-up">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, borderRadius: 12, background: 'var(--surface-1)', border: '1px solid var(--hairline-2)' }}>
-                  <span style={{ width: 46, height: 46, borderRadius: 10, flex: 'none', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg,#caa1bd,#8a5f88)', color: '#fff' }}><Icons.file size={22} /></span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-hi)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-mid)', marginTop: 2 }}>{fmtSize(file.size)} · ready to upload</div>
-                  </div>
-                  <button onClick={() => { setFile(null); setCacheNote(''); }} style={{ color: 'var(--text-lo)', padding: 6 }} title="Remove"><Icons.close size={18} /></button>
-                </div>
-                <button className="btn-primary" onClick={start} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 14, fontSize: 14.5 }}>
-                  <Icons.bolt size={16} /> Upload &amp; analyze
-                </button>
-                {cacheNote && <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--accent-ink)', marginTop: 10 }}>{cacheNote}</div>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {(stage === 'processing' || stage === 'done') && (
-          <div className="fade-up" style={{ borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--hairline-2)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 18px', borderBottom: '1px solid var(--hairline)' }}>
-              <span style={{ width: 38, height: 38, borderRadius: 10, flex: 'none', display: 'grid', placeItems: 'center', background: stage === 'done' ? '#e6f6ec' : 'var(--accent-soft)', color: stage === 'done' ? 'var(--confirm)' : 'var(--accent-ink)' }}>
-                {stage === 'done' ? <Icons.checkCircle size={20} /> : <Icons.server size={19} />}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-hi)' }}>{stage === 'done' ? 'Analysis complete' : 'Processing on the analysis server'}</div>
-                <div className="mono" style={{ fontSize: 12, color: 'var(--text-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file && file.name}</div>
-              </div>
-              {stage !== 'done' && <Icons.bolt size={18} className="spin" style={{ color: 'var(--accent)' }} />}
-            </div>
-
-            <div style={{ padding: '8px 18px 16px' }}>
-              {PIPELINE.map((s, i) => {
-                const idx = job?.step_index ?? 0;
-                const done = stage === 'done' || i < idx;
-                const active = stage === 'processing' && i === idx;
-                return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < PIPELINE.length - 1 ? '1px solid var(--hairline)' : 'none', opacity: done || active ? 1 : 0.42 }}>
-                    <span style={{ width: 22, height: 22, flex: 'none', borderRadius: '50%', display: 'grid', placeItems: 'center', marginTop: 1, background: done ? 'var(--confirm)' : active ? 'var(--accent-soft)' : 'var(--surface-3)', border: active ? '1px solid var(--accent)' : 'none', color: done ? '#fff' : 'var(--accent-ink)' }}>
-                      {done ? <Icons.check size={13} /> : active ? <Icons.bolt size={12} className="spin" /> : <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--text-lo)' }} />}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                        <span style={{ fontSize: 13.5, fontWeight: active || done ? 600 : 500, color: active || done ? 'var(--text-hi)' : 'var(--text-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</span>
-                        {active && s.id === 'upload' && <span className="mono" style={{ fontSize: 12, color: 'var(--accent-ink)', flex: 'none' }}>{job?.progress ?? 0}%</span>}
-                      </div>
-                      <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-lo)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>→ {s.produces}</div>
+        <div className="fade-up">
+          {/* pre-processed slide library */}
+          {catalog.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <div className="mono" style={{ fontSize: 10.5, letterSpacing: '.1em', color: 'var(--text-lo)', textTransform: 'uppercase', marginBottom: 10 }}>Slide library · ready instantly</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                {catalog.map((s) => (
+                  <button key={s.slide_id} onClick={() => openSlide(s.slide_id)}
+                    style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 11, textAlign: 'left',
+                      border: '1px solid var(--hairline-2)', background: 'var(--surface-1)', cursor: 'pointer' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--hairline-2)'; e.currentTarget.style.background = 'var(--surface-1)'; }}>
+                    <img src={s.thumbnail_url} alt="" width={46} height={46} style={{ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', flex: 'none', background: '#e8e7e2' }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-hi)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.specimen}</div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {stage === 'done' && (
-              <div style={{ padding: '0 18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12.5, color: 'var(--text-mid)' }}>Slide, regions, heatmap and evidence are ready to review.</span>
-                <button className="btn-primary" onClick={() => openSlide(job.slide_id)} style={{ padding: '11px 18px' }}><Icons.layers size={16} /> Open in workspace <Icons.arrowR size={15} /></button>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-        )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 4px' }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
+                <span style={{ fontSize: 12, color: 'var(--text-lo)' }}>or upload a new slide</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
+              </div>
+            </div>
+          )}
+
+          {!file ? (
+            <div onClick={() => inputRef.current.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
+              style={{ borderRadius: 14, border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--hairline-2)'}`, background: dragging ? 'var(--accent-soft)' : 'var(--surface-1)', padding: '40px 30px', textAlign: 'center', cursor: 'pointer', transition: 'border-color .15s, background .15s' }}>
+              <span style={{ width: 56, height: 56, borderRadius: 15, margin: '0 auto 14px', display: 'grid', placeItems: 'center', background: 'var(--accent-soft)', color: 'var(--accent-ink)' }}><Icons.upload size={26} /></span>
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-hi)' }}>Drag &amp; drop a slide here</div>
+              <div style={{ fontSize: 13, color: 'var(--text-mid)', marginTop: 6 }}>or <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>browse files</span> · up to 4&nbsp;GB</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-lo)', marginTop: 12 }}>{ACCEPTED}</div>
+              <input ref={inputRef} type="file" hidden onChange={(e) => pickFile(e.target.files[0])} />
+              <div style={{ fontSize: 11.5, color: 'var(--text-lo)', marginTop: 14 }}>Tip: a file named like a processed slide (e.g. <span className="mono">test_016.tif</span>) opens instantly from the library.</div>
+            </div>
+          ) : (
+            <div className="fade-up">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, borderRadius: 12, background: 'var(--surface-1)', border: '1px solid var(--hairline-2)' }}>
+                <span style={{ width: 46, height: 46, borderRadius: 10, flex: 'none', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg,#caa1bd,#8a5f88)', color: '#fff' }}><Icons.file size={22} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-hi)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-mid)', marginTop: 2 }}>{fmtSize(file.size)} · ready to look up</div>
+                </div>
+                <button onClick={() => { setFile(null); setCacheNote(''); }} style={{ color: 'var(--text-lo)', padding: 6 }} title="Remove"><Icons.close size={18} /></button>
+              </div>
+              <button className="btn-primary" onClick={start} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: 14, fontSize: 14.5 }}>
+                <Icons.bolt size={16} /> Open from library
+              </button>
+              {cacheNote && <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--accent-ink)', marginTop: 10, lineHeight: 1.5 }}>{cacheNote}</div>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -2,10 +2,8 @@
    Oncoscope — Patient summary (ported from patient.jsx).
    Unlocks only after sign-off; calm, plain-language, reassuring.
    ============================================================ */
-import { useState, useEffect } from 'react';
 import { Icons } from '../components/Icons.jsx';
 import { useApp } from '../state/AppState.jsx';
-import { api } from '../api/client.js';
 
 function PatientLocked({ app }) {
   return (
@@ -37,14 +35,8 @@ function SummaryCard({ icon, title, children, tint = 'var(--accent)' }) {
 
 export default function Patient() {
   const app = useApp();
-  const [mm, setMm] = useState(null);
-  useEffect(() => {
-    if (!app.signedOff) return undefined;
-    let cancelled = false;
-    api.getAnalysis(app.slideId).then((a) => { if (!cancelled) setMm(a?.slide_summary?.largest_deposit_mm ?? null); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [app.signedOff, app.slideId]);
   if (!app.signedOff) return <PatientLocked app={app} />;
+  const mm = app.report?.largest_deposit_mm ?? null;
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const sizeTxt = mm ? `about ${mm} millimeter${mm >= 2 ? 's' : ''}` : 'a small area';
 

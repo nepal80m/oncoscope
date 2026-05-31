@@ -13,7 +13,7 @@ import Annotorious from '@recogito/annotorious-openseadragon';
 import SelectorPack from '@recogito/annotorious-selector-pack';
 import '@recogito/annotorious-openseadragon/dist/annotorious.min.css';
 import { clsColor, tumorRGB } from '../lib/tissue.js';
-import { toW3C } from '../lib/annoFormat.js';
+import { toW3C, annoBounds } from '../lib/annoFormat.js';
 import { Icons } from '../components/Icons.jsx';
 
 const MAG_STEPS = [4, 10, 20, 40];
@@ -71,7 +71,7 @@ function drawRegionHeatmap(canvas, regions, slideW, slideH) {
 }
 
 const OsdViewer = forwardRef(function OsdViewer(props, ref) {
-  const { slide, regions = [], analyzed, selectedRegion, hoveredRegion, selectedPatch, onPickRegion,
+  const { slide, regions = [], analyzed, overlayUrl, selectedRegion, hoveredRegion, selectedPatch, onPickRegion,
     annotations, drawTool, onSetDrawTool, onAnnotationCreate, onAnnotationUpdate, onAnnotationDelete } = props;
   const elRef = useRef(null);
   const viewerRef = useRef(null);
@@ -161,13 +161,15 @@ const OsdViewer = forwardRef(function OsdViewer(props, ref) {
     };
   }, [dziUrl, imageWidth, imageHeight, mpp, nativeMag]);
 
-  // heatmap data-url from the (reviewed) regions
+  // heatmap: prefer the model's real attention-overlay PNG (stretched over the
+  // slide bounds); fall back to a region-derived heatmap only if none exists.
   useEffect(() => {
     if (!imageWidth || !analyzed) { setHeatUrl(null); return; }
+    if (overlayUrl) { setHeatUrl(overlayUrl); return; }
     const c = document.createElement('canvas');
     drawRegionHeatmap(c, regions, imageWidth, imageHeight);
     setHeatUrl(c.toDataURL());
-  }, [regions, analyzed, imageWidth, imageHeight]);
+  }, [regions, analyzed, imageWidth, imageHeight, overlayUrl]);
 
   // load persisted annotations once
   useEffect(() => {
@@ -194,6 +196,7 @@ const OsdViewer = forwardRef(function OsdViewer(props, ref) {
   useImperativeHandle(ref, () => ({
     focusRegion(id) { const r = regions.find((x) => x.id === id); if (r) flyTo(boxOf(r), 0.5); },
     focusPatch(p) { if (p) flyTo({ x: p.x, y: p.y, w: p.width, h: p.height }, 4); },
+    focusAnnotation(a) { const bb = annoBounds(a); if (bb) flyTo(bb, 0.6); },
     reset() { viewerRef.current?.viewport.goHome(); },
   }), [regions]);
 
@@ -222,19 +225,22 @@ const OsdViewer = forwardRef(function OsdViewer(props, ref) {
           {heatUrl && (() => {
             const tl = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(0, 0));
             const br = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(imageWidth, imageHeight));
-            return <img src={heatUrl} alt="" style={{ position: 'absolute', left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y, opacity, pointerEvents: 'none' }} />;
+            return <img key="heat-overlay" src={heatUrl} alt="" style={{ position: 'absolute', left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y, opacity, pointerEvents: 'none' }} />;
           })()}
           {regions.map((r) => {
             const bb = boxOf(r);
             const tl = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(bb.x, bb.y));
             const br = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(bb.x + bb.w, bb.y + bb.h));
-            const left = tl.x, top = tl.y, width = br.x - tl.x, height = br.y - tl.y;
+            let left = tl.x, top = tl.y, width = br.x - tl.x, height = br.y - tl.y;
             if (width < 0 || height < 0) return null;
+            const MIN = 18; // keep tiny 256-px attention spots clickable at slide scale
+            if (width < MIN) { left -= (MIN - width) / 2; width = MIN; }
+            if (height < MIN) { top -= (MIN - height) / 2; height = MIN; }
             const dismissed = r.review === 'dismissed';
             const confirmed = r.review === 'confirmed';
             const col = dismissed ? '#9aa0a7' : clsColor(r);
             const hot = r.id === selectedRegion || r.id === hoveredRegion || (selPatch && selPatch.region_id === r.id);
-            const labelTxt = `${r.id} · ${Math.round((r.conf || 0.92) * 100)}%`;
+            const labelTxt = r.rank ? `${r.id} · #${r.rank}` : r.id;
             return (
               <div key={r.id} onClick={(e) => { e.stopPropagation(); onPickRegion && onPickRegion(r.id); }}
                 style={{ position: 'absolute', left, top, width, height, borderRadius: 4,
