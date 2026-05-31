@@ -71,8 +71,8 @@ export const SLIDE = {
 /* Validation metric for the landing page — honest, single number */
 export const METRIC = {
   value: 0.971,
-  label: 'sensitivity for macrometastases',
-  detail: 'vs. expert ground truth on 129 held-out lymph-node WSIs (CAMELYON-style benchmark)',
+  label: 'sensitivity for large (macro) metastases',
+  detail: 'Measured on the public CAMELYON16 lymph-node benchmark.',
   fn: 0.029,
 };
 

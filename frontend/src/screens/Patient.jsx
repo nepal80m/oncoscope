@@ -1,9 +1,12 @@
 /* ============================================================
-   Oncoscope — Patient summary (ported from patient.jsx).
-   Unlocks only after sign-off; calm, plain-language, reassuring.
+   Oncoscope — Patient summary.
+   Unlocks only after sign-off. Plain language, and it reflects the
+   actual result (cancer found vs. not found) for the active slide.
    ============================================================ */
+import { useState, useEffect } from 'react';
 import { Icons } from '../components/Icons.jsx';
 import { useApp } from '../state/AppState.jsx';
+import { api } from '../api/client.js';
 
 function PatientLocked({ app }) {
   return (
@@ -12,7 +15,7 @@ function PatientLocked({ app }) {
         <span style={{ width: 64, height: 64, borderRadius: 16, display: 'grid', placeItems: 'center', margin: '0 auto 18px', background: 'var(--surface-2)', border: '1px solid var(--hairline-2)', color: 'var(--text-mid)' }}><Icons.lock size={26} /></span>
         <div style={{ fontSize: 19, fontWeight: 600, color: 'var(--text-hi)', marginBottom: 8 }}>Patient summary is locked</div>
         <p style={{ fontSize: 13.5, color: 'var(--text-mid)', lineHeight: 1.6, margin: '0 0 22px' }}>
-          The plain-language summary becomes available only after a pathologist has reviewed and signed off on the clinical report. This protects patients from seeing unverified AI output.
+          This summary is available only after a pathologist has reviewed and signed off on the report.
         </p>
         <button className="btn-primary" onClick={() => app.go('report')}><Icons.sign size={16} /> Go to report to sign off</button>
       </div>
@@ -35,10 +38,20 @@ function SummaryCard({ icon, title, children, tint = 'var(--accent)' }) {
 
 export default function Patient() {
   const app = useApp();
+  const [analysis, setAnalysis] = useState(null);
+  useEffect(() => {
+    if (!app.signedOff) return undefined;
+    let cancelled = false;
+    api.getAnalysis(app.slideId).then((a) => { if (!cancelled) setAnalysis(a); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [app.signedOff, app.slideId]);
+
   if (!app.signedOff) return <PatientLocked app={app} />;
-  const mm = app.report?.largest_deposit_mm ?? null;
+
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const sizeTxt = mm ? `about ${mm} millimeter${mm >= 2 ? 's' : ''}` : 'a small area';
+  const signer = app.report?.signer || 'Dana Whitfield';
+  const mm = app.report?.largest_deposit_mm ?? null;
+  const positive = analysis ? analysis.prediction === 'tumor' : null; // null = still loading
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #f4f1ea 0%, #eef2ee 100%)' }}>
@@ -51,42 +64,63 @@ export default function Patient() {
 
       <div className="scroll-dark" style={{ flex: 1, overflowY: 'auto', padding: '36px 0 70px' }}>
         <div style={{ width: 'min(680px, 90%)', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 30 }}>
-            <span className="mono" style={{ fontSize: 11.5, letterSpacing: '.12em', color: '#9a948a', textTransform: 'uppercase' }}>Patient summary · {now}</span>
-            <h1 style={{ fontSize: 30, fontWeight: 700, color: '#2a2622', letterSpacing: '-.02em', margin: '10px 0 12px', lineHeight: 1.18 }}>
-              We found cells in your lymph node that need treatment — and we caught them clearly.
-            </h1>
-            <p style={{ fontSize: 15, color: '#6a655d', lineHeight: 1.6, maxWidth: 540, margin: '0 auto' }}>
-              This is a plain-language summary of your pathology results, reviewed and approved by your pathologist. It does not replace the conversation you'll have with your care team.
-            </p>
-          </div>
+          {positive === null ? (
+            <div className="mono" style={{ textAlign: 'center', color: '#9a948a', padding: '60px 0', fontSize: 13 }}>preparing your summary…</div>
+          ) : (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: 30 }}>
+                <span className="mono" style={{ fontSize: 11.5, letterSpacing: '.12em', color: '#9a948a', textTransform: 'uppercase' }}>Patient summary · {now}</span>
+                <h1 style={{ fontSize: 30, fontWeight: 700, color: '#2a2622', letterSpacing: '-.02em', margin: '10px 0 12px', lineHeight: 1.18 }}>
+                  {positive
+                    ? 'Your lymph node was checked, and some cancer cells were found.'
+                    : 'Your lymph node was checked, and no cancer cells were found.'}
+                </h1>
+                <p style={{ fontSize: 15, color: '#6a655d', lineHeight: 1.6, maxWidth: 540, margin: '0 auto' }}>
+                  This is a plain-language summary of your results, reviewed and approved by your pathologist. It does not replace the conversation you will have with your care team.
+                </p>
+              </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <SummaryCard icon="scan" title="What we looked at">
-              A small lymph node from under your arm was removed and examined under a microscope. Lymph nodes are part of the body's filtering system, and checking them helps us understand whether any cells have spread beyond their original site.
-            </SummaryCard>
-            <SummaryCard icon="alert" title="What we found" tint="var(--tumor-mid)">
-              The sample contains <strong>cancer cells</strong> — the largest area is <strong>{sizeTxt}</strong> across, roughly the size of a grain of rice. Finding this clearly is important: it lets your team plan the most effective next steps. There were also smaller areas and a few spots the team is double-checking.
-            </SummaryCard>
-            <SummaryCard icon="checkCircle" title="The good news" tint="var(--confirm)">
-              These cells were identified clearly and early on the slide, and a specialist doctor has personally confirmed the findings. Knowing exactly what's there — and where — means your care can be tailored precisely to you.
-            </SummaryCard>
-            <SummaryCard icon="next" title="What happens next" tint="var(--accent)">
-              Your care team will be in touch to talk through these results and your options together. You don't need to do anything right now. It's completely normal to have questions — write them down as they come to you, and bring them to your next appointment.
-            </SummaryCard>
-          </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <SummaryCard icon="scan" title="What we looked at">
+                  A small lymph node was removed and looked at under a microscope. Lymph nodes help filter the body, so checking them shows whether any cancer cells have spread from where they started.
+                </SummaryCard>
 
-          <div style={{ marginTop: 22, padding: '20px 24px', borderRadius: 16, background: '#eaf6f4', border: '1px solid #cfe5e1', textAlign: 'center' }}>
-            <Icons.heart size={22} style={{ color: 'var(--accent)' }} />
-            <p style={{ fontSize: 14.5, color: '#2f6b63', lineHeight: 1.6, margin: '10px 0 0', fontWeight: 500 }}>
-              You are not alone in this. A specialist nurse can answer questions any time before your appointment.
-            </p>
-            <button className="btn-primary" style={{ marginTop: 16 }}><Icons.chat size={16} /> Contact your care team</button>
-          </div>
+                {positive ? (
+                  <SummaryCard icon="alert" title="What we found" tint="var(--tumor-mid)">
+                    There are some cancer cells in the sample. {mm ? <>The largest area is <strong>about {mm} mm</strong> across. </> : ''}Finding it now helps your care team plan the right next steps.
+                  </SummaryCard>
+                ) : (
+                  <SummaryCard icon="checkCircle" title="What we found" tint="var(--confirm)">
+                    No cancer cells were found in this lymph node.
+                  </SummaryCard>
+                )}
 
-          <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, fontSize: 11.5, color: '#9a948a' }}>
-            <Icons.checkCircle size={14} /> Reviewed &amp; approved by Dr. Dana Whitfield, Pathology · {now}
-          </div>
+                <SummaryCard icon="checkCircle" title="What this means" tint="var(--confirm)">
+                  {positive
+                    ? 'A specialist doctor has reviewed the slide and confirmed these findings. Knowing what is there, and where, helps your team plan care that fits you.'
+                    : 'A specialist doctor has reviewed the slide and confirmed there are no cancer cells in this node.'}
+                </SummaryCard>
+
+                <SummaryCard icon="next" title="What happens next" tint="var(--accent)">
+                  {positive
+                    ? 'Your care team will contact you to talk through the results and your options. You do not need to do anything right now. It is normal to have questions, so write them down and bring them to your next appointment.'
+                    : 'Your care team will contact you to talk through the results. It is normal to have questions, so write them down and bring them to your next appointment.'}
+                </SummaryCard>
+              </div>
+
+              <div style={{ marginTop: 22, padding: '20px 24px', borderRadius: 16, background: '#eaf6f4', border: '1px solid #cfe5e1', textAlign: 'center' }}>
+                <Icons.heart size={22} style={{ color: 'var(--accent)' }} />
+                <p style={{ fontSize: 14.5, color: '#2f6b63', lineHeight: 1.6, margin: '10px 0 0', fontWeight: 500 }}>
+                  A specialist nurse can answer any questions before your appointment.
+                </p>
+                <button className="btn-primary" style={{ marginTop: 16 }}><Icons.chat size={16} /> Contact your care team</button>
+              </div>
+
+              <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, fontSize: 11.5, color: '#9a948a' }}>
+                <Icons.checkCircle size={14} /> Reviewed &amp; approved by Dr. {signer}, Pathology · {now}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

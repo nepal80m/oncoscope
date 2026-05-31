@@ -20,8 +20,7 @@ const SCREENS = [
   { id: 'upload', label: 'Upload slide', icon: 'upload' },
   { id: 'workspace', label: 'Analysis workspace', icon: 'layers' },
   { id: 'report', label: 'Pathology report', icon: 'report' },
-  { id: 'qa', label: 'Q&A assistant', icon: 'chat' },
-  { id: 'patient', label: 'Patient summary', icon: 'user' },
+  // Patient summary is intentionally not listed — reachable only via /patient (URL).
 ];
 
 function ScreenNav() {
@@ -29,7 +28,7 @@ function ScreenNav() {
   const [open, setOpen] = useState(false);
   const cur = SCREENS.find((s) => s.id === screen) || SCREENS[0];
   return (
-    <div style={{ position: 'fixed', left: 14, bottom: 14, zIndex: 95 }}>
+    <div className="screen-nav no-print" style={{ position: 'fixed', left: 14, bottom: 14, zIndex: 95 }}>
       {open && (
         <div className="fade-up" style={{ position: 'absolute', bottom: 50, left: 0, width: 248, padding: 7, borderRadius: 12,
           background: 'var(--surface-1)', border: '1px solid var(--hairline-2)', boxShadow: 'var(--shadow-pop)' }}>
@@ -98,7 +97,7 @@ function NarrateBar() {
 function Shell() {
   const { narrate } = useApp();
   return (
-    <div style={{ height: '100%', position: 'relative' }}>
+    <div className="app-shell" style={{ height: '100%', position: 'relative' }}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/upload" element={<Upload />} />

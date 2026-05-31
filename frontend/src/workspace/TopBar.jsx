@@ -2,7 +2,7 @@
    Oncoscope — Workspace top bar (ported from workspace-panels.jsx)
    ============================================================ */
 import { Icons } from '../components/Icons.jsx';
-import { Disclaimer, LogoMark } from '../components/brand.jsx';
+import { LogoMark } from '../components/brand.jsx';
 import { SLIDE } from '../data/mock.js';
 
 function ToolBtn({ icon, label, onClick, active }) {
@@ -36,13 +36,9 @@ export default function TopBar({ running, analyzed, onRun, onReanalyze, onReport
 
       <div style={{ flex: 1, minWidth: 12 }} />
 
-      <Disclaimer compact />
-      <div style={{ width: 1, height: 26, background: 'var(--hairline)', flex: 'none' }} />
-
       {analyzed ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
           <ToolBtn icon="refresh" label="Re-run analysis" onClick={onReanalyze} />
-          <ToolBtn icon="chat" label="Ask the assistant" onClick={onAsk} active={qaOpen} />
           <ToolBtn icon="speaker" label="Narrate findings" onClick={onNarrate} />
           <button className="btn-primary" onClick={onReport} style={{ flex: 'none' }}><Icons.report size={15} /> Report</button>
         </div>

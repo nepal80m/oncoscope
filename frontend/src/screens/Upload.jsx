@@ -7,7 +7,7 @@
    ============================================================ */
 import { useState, useRef, useEffect } from 'react';
 import { Icons } from '../components/Icons.jsx';
-import { LogoMark, Disclaimer } from '../components/brand.jsx';
+import { LogoMark } from '../components/brand.jsx';
 import { useApp } from '../state/AppState.jsx';
 import { api } from '../api/client.js';
 
@@ -56,7 +56,6 @@ export default function Upload() {
         <LogoMark />
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-hi)', letterSpacing: '-.01em' }}>Oncoscope</span>
         <div style={{ flex: 1 }} />
-        <Disclaimer />
       </div>
 
       <div style={{ width: 'min(760px, 92%)', margin: '12px auto 60px' }}>

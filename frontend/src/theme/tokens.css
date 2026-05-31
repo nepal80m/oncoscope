@@ -170,3 +170,20 @@ svg.a9s-annotationlayer .a9s-annotation.onco-benign .a9s-inner { stroke: #7a828a
 /* emphasize on hover / when selected */
 svg.a9s-annotationlayer .a9s-annotation:hover .a9s-inner { fill-opacity: 0.55; stroke-width: 3px; }
 svg.a9s-annotationlayer .a9s-annotation.selected .a9s-inner { fill-opacity: 0.55; stroke-width: 3px; }
+
+/* ---- Print: "Export PDF" calls window.print(); isolate the report paper ---- */
+@media print {
+  @page { margin: 12mm; }
+  html, body, #root, .app-shell, .report-screen {
+    height: auto !important; overflow: visible !important; background: #fff !important;
+  }
+  .screen-nav, .report-toolbar, .no-print { display: none !important; }
+  .report-scroll {
+    overflow: visible !important; height: auto !important; padding: 0 !important; background: #fff !important;
+  }
+  .report-paper {
+    width: 100% !important; max-width: none !important; margin: 0 !important;
+    box-shadow: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important;
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+  }
+}

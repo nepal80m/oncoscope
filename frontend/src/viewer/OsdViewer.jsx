@@ -85,7 +85,7 @@ const OsdViewer = forwardRef(function OsdViewer(props, ref) {
   const [heatUrl, setHeatUrl] = useState(null);
   const [, setTick] = useState(0);
   const [showOverlay, setShowOverlay] = useState(true);
-  const [opacity, setOpacity] = useState(0.72);
+  const [opacity, setOpacity] = useState(0.55);
 
   const dziUrl = slide?.dzi_url;
   const imageWidth = slide?.width;
@@ -225,7 +225,9 @@ const OsdViewer = forwardRef(function OsdViewer(props, ref) {
           {heatUrl && (() => {
             const tl = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(0, 0));
             const br = vp.imageToViewerElementCoordinates(new OpenSeadragon.Point(imageWidth, imageHeight));
-            return <img key="heat-overlay" src={heatUrl} alt="" style={{ position: 'absolute', left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y, opacity, pointerEvents: 'none' }} />;
+            // multiply blend: the overlay's light/tissue areas leave the sharp tiles
+            // untouched, only the colored attention blobs tint them (no blurry wash)
+            return <img key="heat-overlay" src={heatUrl} alt="" style={{ position: 'absolute', left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y, opacity, pointerEvents: 'none', mixBlendMode: 'multiply' }} />;
           })()}
           {regions.map((r) => {
             const bb = boxOf(r);

@@ -3,7 +3,7 @@
    ============================================================ */
 import { useEffect, useRef } from 'react';
 import { Icons } from '../components/Icons.jsx';
-import { LogoMark, Disclaimer } from '../components/brand.jsx';
+import { LogoMark } from '../components/brand.jsx';
 import { useApp } from '../state/AppState.jsx';
 import { getTissueCanvas, drawHeatmap, tumorRGB, rgbStr } from '../lib/tissue.js';
 import { REGIONS, METRIC, SLIDE_W, SLIDE_H } from '../data/mock.js';
@@ -57,24 +57,17 @@ export default function Landing() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 30px', position: 'relative', zIndex: 5 }}>
         <LogoMark />
         <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-hi)', letterSpacing: '-.01em' }}>Oncoscope</span>
-        <span className="mono" style={{ fontSize: 11, color: 'var(--text-lo)', padding: '2px 8px', borderRadius: 5, border: '1px solid var(--hairline)', marginLeft: 2, whiteSpace: 'nowrap' }}>v0.4 · research</span>
         <div style={{ flex: 1 }} />
-        <Disclaimer />
         <button className="btn-primary" onClick={() => app.go('upload')}>Upload a slide <Icons.arrowR size={15} /></button>
       </div>
 
       <div style={{ width: 'min(1140px, 92%)', margin: '0 auto', display: 'grid', gridTemplateColumns: '1.05fr 1fr', gap: 56, alignItems: 'center', padding: '40px 0 30px', minHeight: 'calc(100% - 200px)' }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 100, border: '1px solid var(--hairline-2)', background: 'var(--surface-1)', marginBottom: 24 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent-hi)' }} />
-            <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500 }}>AI second reader for lymph-node metastasis</span>
-          </div>
-
           <h1 style={{ fontSize: 46, lineHeight: 1.08, fontWeight: 700, letterSpacing: '-.025em', color: 'var(--text-hi)', margin: '0 0 22px', textWrap: 'balance' }}>
-            A two-millimeter metastasis hides on the fortieth slide of the day.
+            A second read for lymph-node slides.
           </h1>
           <p style={{ fontSize: 17, lineHeight: 1.6, color: 'var(--text-mid)', margin: '0 0 32px', maxWidth: 480 }}>
-            Sentinel-node review is slow, repetitive, and unforgiving — a single missed deposit changes a patient's staging. Oncoscope triages every slide, shows you <em style={{ color: 'var(--text)', fontStyle: 'normal', fontWeight: 600 }}>why</em> it flagged each region, and hands you a signable report. You stay the decision-maker.
+            Sentinel-node slides take time to review, and small metastases are easy to miss. Oncoscope highlights the areas worth a closer look and shows where the model focused. You confirm or dismiss each one, then sign the report.
           </p>
 
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 22, padding: '20px 24px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--hairline-2)', marginBottom: 30, maxWidth: 520 }}>
@@ -85,7 +78,7 @@ export default function Landing() {
             <div style={{ width: 1, background: 'var(--hairline)' }} />
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: 12, color: 'var(--text-lo)', lineHeight: 1.5 }}>
               {METRIC.detail}
-              <span style={{ color: 'var(--warn)', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icons.alert size={13} /> Still misses ~{(METRIC.fn * 100).toFixed(1)}% — assistive only, never autonomous.</span>
+              <span style={{ color: 'var(--warn)', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icons.alert size={13} /> It still misses about {(METRIC.fn * 100).toFixed(1)}%. Use it as a second read, not on its own.</span>
             </div>
           </div>
 

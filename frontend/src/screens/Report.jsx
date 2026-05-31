@@ -8,7 +8,7 @@
    ============================================================ */
 import { useState, useEffect, createElement } from 'react';
 import { Icons } from '../components/Icons.jsx';
-import { LogoMark, Disclaimer } from '../components/brand.jsx';
+import { LogoMark } from '../components/brand.jsx';
 import { ConfBar } from '../components/ui.jsx';
 import { tumorRGB, rgbStr } from '../lib/tissue.js';
 import { useApp } from '../state/AppState.jsx';
@@ -31,7 +31,7 @@ function Editable({ initial, style, locked, tag = 'div', onSave }) {
 function ReportToolbar({ app }) {
   const { signedOff, setNarrate } = app;
   return (
-    <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px', background: 'var(--surface-1)', borderBottom: '1px solid var(--hairline)' }}>
+    <div className="report-toolbar" style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px', background: 'var(--surface-1)', borderBottom: '1px solid var(--hairline)' }}>
       <button onClick={() => app.go('workspace')} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-mid)', padding: '7px 11px', borderRadius: 7, border: '1px solid var(--hairline)', background: 'var(--surface-2)' }}>
         <Icons.chevL size={15} /> Workspace
       </button>
@@ -41,9 +41,8 @@ function ReportToolbar({ app }) {
         {signedOff && <span className="mono" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--confirm)', padding: '3px 9px', borderRadius: 100, background: '#e6f6ec', border: '1px solid #bfe6cd' }}><Icons.checkCircle size={13} /> SIGNED</span>}
       </div>
       <div style={{ flex: 1 }} />
-      <Disclaimer />
       <button className="btn-ghost" onClick={() => setNarrate(true)}><Icons.speaker size={16} /> Narrate</button>
-      <button className="btn-ghost"><Icons.download size={15} /> Export PDF</button>
+      <button className="btn-ghost" onClick={() => window.print()}><Icons.download size={15} /> Export PDF</button>
     </div>
   );
 }
@@ -104,20 +103,13 @@ export default function Report() {
   const foci = `${kept.filter((r) => r.cls === 'tumor').length} confirmed tumor · ${kept.filter((r) => r.cls === 'uncertain').length} for review`;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-canvas)' }}>
+    <div className="report-screen" style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-canvas)' }}>
       <ReportToolbar app={app} />
-      <div className="scroll-dark" style={{ flex: 1, overflowY: 'auto', padding: '28px 0 80px', background: 'var(--bg-canvas)' }}>
+      <div className="scroll-dark report-scroll" style={{ flex: 1, overflowY: 'auto', padding: '28px 0 80px', background: 'var(--bg-canvas)' }}>
         {!ready ? (
           <div style={{ display: 'grid', placeItems: 'center', height: '60%', color: 'var(--text-lo)' }} className="mono">assembling report…</div>
         ) : (
-        <div style={{ width: 'min(880px, 92%)', margin: '0 auto', background: 'var(--paper)', borderRadius: 14, boxShadow: 'var(--shadow-2)', overflow: 'hidden', color: 'var(--ink)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 30px', background: 'rgba(232,179,57,0.14)', borderBottom: '1px solid rgba(180,140,40,0.3)' }}>
-            <Icons.alert size={16} style={{ color: '#b5862a', flex: 'none' }} />
-            <span style={{ fontSize: 12, color: '#8a661f', lineHeight: 1.4, fontWeight: 500 }}>
-              AI-generated draft for research demonstration only. Every statement must be independently verified by a qualified pathologist before any clinical use. <strong>Not a validated diagnostic device.</strong>
-            </span>
-          </div>
-
+        <div className="report-paper" style={{ width: 'min(880px, 92%)', margin: '0 auto', background: 'var(--paper)', borderRadius: 14, boxShadow: 'var(--shadow-2)', overflow: 'hidden', color: 'var(--ink)' }}>
           <div style={{ padding: '30px 40px 44px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
               <div>
@@ -169,7 +161,7 @@ export default function Report() {
                         <span className="mono" style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, color: status[1], background: status[2], whiteSpace: 'nowrap' }}>{status[0]}</span>
                       </div>
                       <Editable key={'find-' + slideId + '-' + r.id} locked={locked} initial={(r0.findings && r0.findings[r.id]) || r.note || ''} onSave={(t) => saveReport({ findings: { ...(r0.findings || {}), [r.id]: t } })} style={{ fontSize: 13, lineHeight: 1.55, color: (r0.findings && r0.findings[r.id]) ? 'var(--ink)' : 'var(--ink-2)' }} />
-                      {!locked && !(r0.findings && r0.findings[r.id]) && <div style={{ fontSize: 11, color: 'var(--text-lo)', marginTop: 4, fontStyle: 'italic' }}>High-attention region (rank {r.rank}) — add your description.</div>}
+                      {!locked && !(r0.findings && r0.findings[r.id]) && <div style={{ fontSize: 11, color: 'var(--text-lo)', marginTop: 4, fontStyle: 'italic' }}>High-attention area (rank {r.rank}). Add your description.</div>}
                       {r.docNote ? <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent-ink)', display: 'flex', gap: 6, alignItems: 'flex-start' }}><Icons.edit size={13} style={{ marginTop: 1, flex: 'none' }} /> <span>{r.docNote}</span></div> : null}
                     </div>
                   </div>
@@ -223,7 +215,7 @@ export default function Report() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--confirm)', fontWeight: 600, fontSize: 13 }}><Icons.checkCircle size={18} /> Report finalized · patient summary unlocked</div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
                   <div style={{ fontSize: 12.5, color: 'var(--ink-2)', maxWidth: 420, lineHeight: 1.5 }}>Review and edit every field above. Signing off finalizes the report and unlocks the plain-language patient summary.</div>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn-primary" onClick={() => setConfirm(true)}><Icons.sign size={16} /> Sign off &amp; finalize</button>

@@ -143,13 +143,23 @@ export const api = {
     const snap = await getDoc(repDoc(id));
     if (snap.exists()) return { slide_id: id, ...snap.data() };
     let seed = {};
-    try { seed = await getJSON(reportUrl(id)); } catch { /* no report.json in bucket → seed from empty */ }
+    try { seed = await getJSON(reportUrl(id)); } catch { /* no report.json in bucket */ }
+    let result = {};
+    try { result = await getJSON(resultUrl(id)); } catch { /* no result.json */ }
+    // Plain-language default impression composed from the real result. (The
+    // bucket's report_clinician reads too technical to show, but is kept below.)
+    const positive = result.prediction === 'tumor';
+    const n = (result.regions || []).length;
+    const prob = result.display_probability || (typeof result.prob_tumor === 'number' ? Math.round(result.prob_tumor * 100) + '%' : '');
+    const impression = positive
+      ? `This lymph node has ${n} area${n === 1 ? '' : 's'} flagged for review${prob ? ` (overall tumor probability ${prob})` : ''}. The highlighted regions are shown below. Confirm or rule out each one before signing.`
+      : `No areas of concern were flagged on this lymph node${prob ? ` (overall tumor probability ${prob})` : ''}. Please confirm before signing.`;
     const doc0 = {
       report_clinician: seed.report_clinician || '',
       report_patient: seed.report_patient || '',
       limitations: seed.limitations || [],
       next_step: seed.next_step || '',
-      impression: seed.report_clinician || '',
+      impression,
       findings: {},
       category: null, tumor_area_pct: null, largest_deposit_mm: null,
       signed_off: false, signer: null, signed_at: null,
