@@ -2,12 +2,12 @@
    Oncoscope — app shell: router, screen navigator, narrate bar
    (ported from app.jsx; navigation now via React Router)
    ============================================================ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './state/AppState.jsx';
 import { Icons } from './components/Icons.jsx';
 import Waveform from './components/Waveform.jsx';
-import { REPORT } from './data/mock.js';
+import { api } from './api/client.js';
 import Landing from './screens/Landing.jsx';
 import Upload from './screens/Upload.jsx';
 import Workspace from './screens/Workspace.jsx';
@@ -61,34 +61,58 @@ function ScreenNav() {
 }
 
 function NarrateBar() {
-  const { setNarrate } = useApp();
-  const [playing, setPlaying] = useState(true);
-  const [p, setP] = useState(0);
+  const { setNarrate, slideId } = useApp();
+  const [phase, setPhase] = useState('loading'); // loading | ready | error
+  const [err, setErr] = useState('');
+  const [text, setText] = useState('');
+  const [playing, setPlaying] = useState(false);
+  const [pct, setPct] = useState(0);
+  const audioRef = useRef(null);
+
   useEffect(() => {
-    if (!playing) return undefined;
-    const iv = setInterval(() => setP((v) => { if (v >= 100) { clearInterval(iv); return 100; } return v + 0.55; }), 60);
-    return () => clearInterval(iv);
-  }, [playing]);
+    let cancelled = false;
+    setPhase('loading'); setErr(''); setPct(0); setPlaying(false);
+    api.slideNarration(slideId)
+      .then(({ report, audioUrl }) => {
+        if (cancelled) return;
+        setText(report?.report_clinician || '');
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audio.addEventListener('timeupdate', () => { if (audio.duration) setPct((audio.currentTime / audio.duration) * 100); });
+        audio.addEventListener('ended', () => { setPlaying(false); setPct(100); });
+        setPhase('ready');
+        audio.play().then(() => { if (!cancelled) setPlaying(true); }).catch(() => { /* autoplay blocked → user taps play */ });
+      })
+      .catch((e) => { if (!cancelled) { setPhase('error'); setErr(e.message || 'could not generate narration'); } });
+    return () => { cancelled = true; const a = audioRef.current; if (a) { a.pause(); a.src = ''; } audioRef.current = null; };
+  }, [slideId]);
+
+  const toggle = () => { const a = audioRef.current; if (!a) return; if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); } };
+  const close = () => { const a = audioRef.current; if (a) a.pause(); setNarrate(false); };
+  const label = phase === 'loading' ? 'Generating narration…' : phase === 'error' ? 'Narration unavailable' : 'Slide narration · AI voice';
+
   return (
     <div className="fade-up" style={{ position: 'fixed', left: '50%', bottom: 20, transform: 'translateX(-50%)', zIndex: 96, width: 'min(560px, 92%)',
       padding: '13px 16px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--hairline-2)', boxShadow: 'var(--shadow-pop)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-        <button onClick={() => setPlaying(!playing)} style={{ width: 38, height: 38, borderRadius: '50%', flex: 'none', display: 'grid', placeItems: 'center', background: 'var(--accent)', color: '#fff' }}>
-          {playing ? <Icons.minus size={18} /> : <Icons.play size={16} />}
+        <button onClick={toggle} disabled={phase !== 'ready'} title={playing ? 'Pause' : 'Play'}
+          style={{ width: 38, height: 38, borderRadius: '50%', flex: 'none', display: 'grid', placeItems: 'center', cursor: phase === 'ready' ? 'pointer' : 'default',
+            background: phase === 'ready' ? 'var(--accent)' : 'var(--surface-3)', color: phase === 'ready' ? '#fff' : 'var(--text-lo)' }}>
+          {phase === 'loading' ? <Icons.bolt size={16} className="spin" /> : playing ? <Icons.pause size={16} /> : <Icons.play size={16} />}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
             <Waveform active={playing} bars={16} />
-            <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-lo)', marginLeft: 'auto' }}>Narrating impression · AI voice</span>
+            <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-lo)', marginLeft: 'auto' }}>{label}</span>
           </div>
           <div style={{ height: 4, borderRadius: 4, background: 'var(--surface-3)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: p + '%', background: 'var(--accent)' }} />
+            <div style={{ height: '100%', width: pct + '%', background: 'var(--accent)', transition: 'width .1s' }} />
           </div>
         </div>
-        <button onClick={() => setNarrate(false)} style={{ color: 'var(--text-lo)', padding: 5, flex: 'none' }}><Icons.close size={17} /></button>
+        <button onClick={close} title="Close" style={{ color: 'var(--text-lo)', padding: 5, flex: 'none' }}><Icons.close size={17} /></button>
       </div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-mid)', lineHeight: 1.5, marginTop: 10, maxHeight: 42, overflow: 'hidden' }}>
-        “{REPORT.impression}”
+      <div style={{ fontSize: 12.5, color: phase === 'error' ? 'var(--tumor-hi)' : 'var(--text-mid)', lineHeight: 1.5, marginTop: 10, maxHeight: 52, overflow: 'hidden' }}>
+        {phase === 'error' ? err : phase === 'loading' ? 'Generating the slide-level narration with Gemini and ElevenLabs…' : (text ? '“' + text + '”' : '')}
       </div>
     </div>
   );

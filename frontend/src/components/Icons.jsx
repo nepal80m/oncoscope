@@ -17,6 +17,7 @@ const Ic = ({ d, size = 18, fill, sw = 1.6, children, vb = 24, style }) =>
 
 export const Icons = {
   play:    (p) => <Ic {...p} fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></Ic>,
+  pause:   (p) => <Ic {...p} fill="currentColor"><path d="M8 5h3.2v14H8zM12.8 5H16v14h-3.2z" /></Ic>,
   bolt:    (p) => <Ic {...p}><path d="M13 3 5 13h6l-2 8 8-11h-6z" /></Ic>,
   layers:  (p) => <Ic {...p}><path d="M12 3 3 8l9 5 9-5z" /><path d="M3 13l9 5 9-5" /></Ic>,
   eye:     (p) => <Ic {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></Ic>,

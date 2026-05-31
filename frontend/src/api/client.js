@@ -67,6 +67,10 @@ const comCol = (sid) => collection(db, 'slides', sid, 'comments');
 const repDoc = (sid) => doc(db, 'reports', sid);
 const fid = (x) => encodeURIComponent(String(x)); // safe Firestore doc id from an arbitrary id
 
+/* Slide-level narration Cloud Function (Gemini report + ElevenLabs MP3). */
+const AUDIO_SLIDE_URL = import.meta.env.VITE_AUDIO_SLIDE_URL || 'https://us-west1-uoo-quackathon26eug-8226.cloudfunctions.net/oncoscope-report-audio';
+const _narration = new Map(); // cache per slide — generation is slow + costs Gemini/TTS quota
+
 export const api = {
   /* ---- catalog (from manifest.json) ---- */
   listSlides: async () => {
@@ -176,5 +180,22 @@ export const api = {
     const data = { signed_off: true, signer: signer || 'Pathologist', signed_at: new Date().toISOString() };
     await setDoc(repDoc(id), data, { merge: true });
     return data;
+  },
+
+  /* ---- slide-level narration (Gemini clinician report + ElevenLabs MP3) ---- */
+  slideNarration: async (id) => {
+    if (_narration.has(id)) return _narration.get(id);
+    const promise = (async () => {
+      const res = await fetch(AUDIO_SLIDE_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slide_id: id }),
+      });
+      if (!res.ok) throw new Error(`narration failed (${res.status})`);
+      const data = await res.json();
+      if (data?.error) throw new Error(data.error.message || 'narration error');
+      return { report: data.report, audioUrl: `data:${data.audio.content_type};base64,${data.audio.data}` };
+    })();
+    _narration.set(id, promise);
+    promise.catch(() => _narration.delete(id)); // allow retry after a failure
+    return promise;
   },
 };

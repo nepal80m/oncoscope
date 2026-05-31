@@ -7,5 +7,6 @@ dist
 .env.production.local
 
 oncoscope-design-handoff/
+oncoscope-audio-functions-handoff.md
 sample_dzi_files/
 BACKEND_REQUIREMENTS.md

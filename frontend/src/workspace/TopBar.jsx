@@ -39,7 +39,7 @@ export default function TopBar({ running, analyzed, onRun, onReanalyze, onReport
       {analyzed ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
           <ToolBtn icon="refresh" label="Re-run analysis" onClick={onReanalyze} />
-          <ToolBtn icon="speaker" label="Narrate findings" onClick={onNarrate} />
+          <button className="btn-ghost" onClick={onNarrate} title="Narrate findings" style={{ flex: 'none' }}><Icons.speaker size={16} /> Narrate</button>
           <button className="btn-primary" onClick={onReport} style={{ flex: 'none' }}><Icons.report size={15} /> Report</button>
         </div>
       ) : (

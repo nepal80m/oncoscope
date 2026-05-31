@@ -69,6 +69,9 @@ export default function Workspace() {
     return () => { cancelled = true; };
   }, [slideId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // preload slide narration (Gemini + TTS is slow) so "Narrate" plays instantly; cached per slide
+  useEffect(() => { api.slideNarration(slideId).catch(() => {}); }, [slideId]);
+
   const patches = analysis?.top_patches || [];
   const summary = analysis ? {
     ...analysis.slide_summary, confidence: analysis.prob_tumor,
